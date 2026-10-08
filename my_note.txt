@@ -1,0 +1,17 @@
+$personalKey = Read-Host 'Paste your PERSONAL OpenAI API key here' -AsSecureString
+$env:OPENAI_API_KEY = [System.Net.NetworkCredential]::new('', $personalKey).Password
+Remove-Variable personalKey
+$env:DEMO_ALLOW_PAID_CALLS = '1'
+(the rest)-tSZP49Y99mhvXqJxObhE12zlx4N17ghIKjRYsjvaAA
+
+finally:
+& '../.venv/Scripts/python.exe' text_demo.py
+
+
+$personalKey = Read-Host 'Paste your PERSONAL OpenAI API key here' -AsSecureString
+$env:OPENAI_API_KEY = [System.Net.NetworkCredential]::new('', $personalKey).Password
+Remove-Variable personalKey
+$env:DEMO_ALLOW_PAID_CALLS = '1'
+
+finally in powershell:
+& '../.venv/Scripts/python.exe' text_demo.py
