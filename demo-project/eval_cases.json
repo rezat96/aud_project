@@ -14,6 +14,13 @@
     "bookings": [{"service": "tire_rotation", "slot_number": 2}]
   },
   {
+    "name": "late_week_slot",
+    "turns": ["Tire rotation next Thursday at 3 PM", "confirm"],
+    "decisions": [{"action": "offer", "service": "tire_rotation", "slot_number": 21}],
+    "events": ["offer", "booked"],
+    "bookings": [{"service": "tire_rotation", "slot_number": 21}]
+  },
+  {
     "name": "availability_only",
     "turns": ["What appointments are available?"],
     "decisions": [{"action": "availability", "service": null, "slot_number": null}],
@@ -23,9 +30,19 @@
   {
     "name": "missing_details",
     "turns": ["I want an oil change", "confirm"],
-    "decisions": [{"action": "clarify", "service": null, "slot_number": null}],
+    "decisions": [{"action": "clarify", "service": "oil_change", "slot_number": null}],
     "events": ["clarify", "rejected"],
     "bookings": []
+  },
+  {
+    "name": "split_request_memory",
+    "turns": ["I need an oil change", "The first slot please", "confirm"],
+    "decisions": [
+      {"action": "clarify", "service": "oil_change", "slot_number": null},
+      {"action": "offer", "service": null, "slot_number": 1}
+    ],
+    "events": ["clarify", "offer", "booked"],
+    "bookings": [{"service": "oil_change", "slot_number": 1}]
   },
   {
     "name": "unsupported_service",
@@ -57,5 +74,76 @@
     "decisions": [{"action": "handoff", "service": null, "slot_number": null}],
     "events": ["handoff"],
     "bookings": []
+  },
+  {
+    "name": "spoken_punctuated_confirmation",
+    "turns": ["Oil change at slot 1 please", "Confirmed."],
+    "decisions": [{"action": "offer", "service": "oil_change", "slot_number": 1}],
+    "events": ["offer", "booked"],
+    "bookings": [{"service": "oil_change", "slot_number": 1}]
+  },
+  {
+    "name": "ambiguous_followup_preserves_offer",
+    "turns": ["Oil change at slot 1 please", "I might need to change the time", "Confirm."],
+    "decisions": [
+      {"action": "offer", "service": "oil_change", "slot_number": 1},
+      {"action": "clarify", "service": null, "slot_number": null}
+    ],
+    "events": ["offer", "awaiting_confirmation", "booked"],
+    "bookings": [{"service": "oil_change", "slot_number": 1}]
+  },
+  {
+    "name": "tomorrow_wrong_date_not_offered",
+    "turns": ["Oil change tomorrow at slot 4"],
+    "decisions": [{"action": "offer", "service": "oil_change", "slot_number": 4}],
+    "events": ["date_mismatch"],
+    "bookings": []
+  },
+  {
+    "name": "tomorrow_matching_date",
+    "turns": ["Oil change tomorrow at slot 1", "Yes, please."],
+    "decisions": [{"action": "offer", "service": "oil_change", "slot_number": 1}],
+    "events": ["offer", "booked"],
+    "bookings": [{"service": "oil_change", "slot_number": 1}]
+  },
+  {
+    "name": "concurrent_booking_conflict",
+    "turns": ["Oil change at slot 1 please", "confirm"],
+    "decisions": [{"action": "offer", "service": "oil_change", "slot_number": 1}],
+    "events": ["offer", "rejected"],
+    "bookings": [],
+    "competing_booking_before_turn": {"turn": 1, "service": "tire_rotation", "slot_number": 1}
+  },
+  {
+    "name": "lost_confirmation_response_retried_idempotently",
+    "turns": ["Oil change at slot 1 please", "confirm", "retry"],
+    "decisions": [{"action": "offer", "service": "oil_change", "slot_number": 1}],
+    "events": ["offer", "confirmation_uncertain", "booked"],
+    "bookings": [{"service": "oil_change", "slot_number": 1}],
+    "timeout_after_commit": true
+  },
+  {
+    "name": "booking_status_ignores_irrelevant_model_arguments",
+    "turns": ["What time was my booking?"],
+    "decisions": [{"action": "booking_status", "service": "oil_change", "slot_number": 1}],
+    "events": ["booking_status"],
+    "bookings": [],
+    "reply_contains": ["There is no confirmed booking"]
+  },
+  {
+    "name": "recall_confirmed_appointment_time",
+    "turns": ["Oil change at slot 1 please", "confirm", "Do you recall the slot that I booked? Can you tell me the time and date?"],
+    "decisions": [{"action": "offer", "service": "oil_change", "slot_number": 1}],
+    "events": ["offer", "booked", "booking_status"],
+    "bookings": [{"service": "oil_change", "slot_number": 1}],
+    "reply_contains": ["oil_change", "2026-10-09T09:00:00+00:00"]
+  },
+  {
+    "name": "recall_booking_and_decline_unsupported_trip_estimate",
+    "turns": ["Oil change at slot 1 please", "confirm", "Can you remind me of the exact time I should be there? Also tell me what time I will get home."],
+    "decisions": [{"action": "offer", "service": "oil_change", "slot_number": 1}],
+    "events": ["offer", "booked", "booking_status"],
+    "bookings": [{"service": "oil_change", "slot_number": 1}],
+    "reply_contains": ["2026-10-09T09:00:00+00:00", "can't estimate when you will get home"]
   }
 ]

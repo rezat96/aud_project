@@ -51,15 +51,18 @@ class Scheduler:
         return connection
 
     def seed_slots(self, now: datetime) -> None:
-        tomorrow = (now + timedelta(days=1)).replace(
+        first_day = (now + timedelta(days=1)).replace(
             hour=9, minute=0, second=0, microsecond=0
         )
         with closing(self._connect()) as connection, connection:
-            for hour in (9, 10):
-                start = tomorrow.replace(hour=hour).isoformat()
-                connection.execute(
-                    "INSERT OR IGNORE INTO slots VALUES (?, ?)", (start, start)
-                )
+            for day_offset in range(7):
+                for hour in (9, 12, 15):
+                    start = (first_day + timedelta(days=day_offset)).replace(
+                        hour=hour
+                    ).isoformat()
+                    connection.execute(
+                        "INSERT OR IGNORE INTO slots VALUES (?, ?)", (start, start)
+                    )
 
     def available_slots(self, now: datetime) -> list[dict[str, str]]:
         with closing(self._connect()) as connection:

@@ -27,12 +27,23 @@ class SchedulerTests(unittest.TestCase):
 
     def test_confirmed_booking_removes_slot(self):
         self.assertEqual(self.book().slot_id, self.slot_id)
-        self.assertEqual(len(self.scheduler.available_slots(self.now)), 1)
+        self.assertEqual(len(self.scheduler.available_slots(self.now)), 20)
+
+    def test_seeded_calendar_has_three_slots_per_day_for_seven_days(self):
+        slots = self.scheduler.available_slots(self.now)
+        starts = [datetime.fromisoformat(slot["starts_at"]) for slot in slots]
+        self.assertEqual(len(slots), 21)
+        self.assertEqual(len({start.date() for start in starts}), 7)
+        for day in {start.date() for start in starts}:
+            self.assertEqual(
+                sorted(start.hour for start in starts if start.date() == day),
+                [9, 12, 15],
+            )
 
     def test_unconfirmed_request_does_not_book(self):
         with self.assertRaisesRegex(BookingError, "confirmation"):
             self.book(confirmed=False)
-        self.assertEqual(len(self.scheduler.available_slots(self.now)), 2)
+        self.assertEqual(len(self.scheduler.available_slots(self.now)), 21)
 
     def test_replay_returns_original_booking_even_after_offer_expiry(self):
         original = self.book()

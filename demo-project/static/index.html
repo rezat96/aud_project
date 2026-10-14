@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dealership Voice Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 760px; }
+    button { padding: 0.8rem 1.2rem; font-size: 1rem; margin-right: 0.5rem; }
+    #log { white-space: pre-wrap; background: #f4f4f4; padding: 1rem; border-radius: 8px; margin-top: 1rem; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Dealership Voice Demo</h1>
+  <button id="start">Start mic</button>
+  <button id="stop" class="hidden">Stop</button>
+  <button id="reset" type="button">Clear session</button>
+
+  <div id="status"></div>
+  <section id="result" aria-live="polite" aria-atomic="true"></section>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
+    const resetBtn = document.getElementById('reset');
+    const resultEl = document.getElementById('result');
+
+    let mediaRecorder;
+    let chunks = [];
+    let sessionId = 'demo-session';
+    async function createSession() {
+      const response = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not create session.');
+      sessionId = data.session_id;
+      statusEl.textContent = `Session: ${sessionId}`;
+    }
+
+    function showOutcome(result) {
+      resultEl.replaceChildren();
+      const heading = document.createElement('h2');
+      const details = document.createElement('p');
+
+      if (result.event === 'booked' || result.event === 'booking_status') {
+        heading.textContent = result.event === 'booked' ? 'Booking confirmed' : 'Latest booking';
+        details.textContent = `${result.service} | ${result.slot_id} UTC | Booking ${result.booking_id}`;
+      } else if (result.event === 'offer') {
+        heading.textContent = 'Appointment offered';
+        details.textContent = `${result.service} | ${result.slot_id} UTC. ${result.reply}`;
+      } else {
+        heading.textContent = (result.event || 'Update').replaceAll('_', ' ');
+        details.textContent = result.reply || 'No booking details available.';
+      }
+
+      resultEl.append(heading, details);
+    }
+
+    async function submitTranscript(text) {
+      const response = await fetch('/api/turn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, transcript: text })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'The scheduler could not process this turn.');
+      showOutcome(result);
+      statusEl.textContent = 'Ready.';
+    }
+
+    startBtn.addEventListener('click', async () => {
+      try {
+        await createSession();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        chunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) chunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            try {
+              statusEl.textContent = 'Transcribing...';
+              const base64 = reader.result.split(',')[1];
+              const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId, audio_base64: base64, format: 'webm' })
+              });
+              const transcription = await response.json();
+              if (!response.ok) throw new Error(transcription.error || 'Transcription failed.');
+              if (!transcription.transcript) {
+                statusEl.textContent = 'No speech detected.';
+                return;
+              }
+              statusEl.textContent = 'Processing request...';
+              await submitTranscript(transcription.transcript);
+            } catch (error) {
+              statusEl.textContent = error.message;
+            }
+          };
+          reader.readAsDataURL(blob);
+        };
+
+        mediaRecorder.start();
+        startBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+        statusEl.textContent = 'Recording...';
+      } catch (error) {
+        statusEl.textContent = error.message || 'Microphone access denied or unavailable.';
+        console.error(error);
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach((track) => track.stop());
+      }
+      stopBtn.classList.add('hidden');
+      startBtn.classList.remove('hidden');
+      statusEl.textContent = 'Recording stopped.';
+    });
+
+    resetBtn.addEventListener('click', async () => {
+      try {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.onstop = null;
+          mediaRecorder.stop();
+          mediaRecorder.stream.getTracks().forEach((track) => track.stop());
+          stopBtn.classList.add('hidden');
+          startBtn.classList.remove('hidden');
+        }
+        const response = await fetch('/api/session', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not clear session.');
+        resultEl.replaceChildren();
+        statusEl.textContent = 'Session cleared. Start the mic for a fresh conversation.';
+      } catch (error) {
+        statusEl.textContent = error.message;
+      }
+    });
+
+    statusEl.textContent = 'Ready.';
+  </script>
+</body>
+</html>

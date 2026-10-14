@@ -18,7 +18,7 @@ The configured interpreter on this machine is:
 & 'C:/Users/rtalakoob/AppData/Local/anaconda3/python.exe' demo.py
 ```
 
-The console uses a temporary SQLite database that disappears after exit. It seeds two slots tomorrow, in UTC, for one shared mock service bay. This is deliberately simpler than dealership-local time zones and multi-resource scheduling.
+The console uses a temporary SQLite database that disappears after exit. It seeds 21 appointments across the next seven days in UTC, at 09:00, 12:00, and 15:00 each day, for one shared mock service bay. The text agent receives the numbered current-availability list and must map requested dates/times to it. This is deliberately simpler than dealership-local time zones and multi-resource scheduling.
 
 Try this sequence:
 
@@ -84,7 +84,7 @@ The selected project interpreter is now the existing workspace virtual environme
 & '../.venv/Scripts/python.exe' evaluate.py
 ```
 
-Both commands are offline and free. Scripted evaluation supplies expected model outputs: it tests controller/database behavior, NOT natural-language understanding. Live evaluation uses the same eight synthetic cases to score model actions/arguments, event sequences, and actual persisted booking service/slot. It exits nonzero on regression. This tiny developer test set is not a representative benchmark or evidence of production readiness. Add genuinely unseen cases before claiming generalization.
+Both commands are offline and free. Scripted evaluation supplies expected model outputs: it tests controller/database behavior, NOT natural-language understanding. Live evaluation uses the same ten synthetic cases to score model actions/arguments, event sequences, and actual persisted booking service/slot. It exits nonzero on regression. This tiny developer test set is not a representative benchmark or evidence of production readiness. Add genuinely unseen cases before claiming generalization.
 
 Architecture:
 
@@ -94,7 +94,7 @@ utterance + current slots -> OpenAI structured action -> Python validation
 exact user command confirm -> trusted controller -> scheduler transaction
 ```
 
-The model cannot select confirm or provide customer IDs, request keys, or SQL. Replies are templates grounded in controller results; no second generation call is needed. This is a bounded action router, not yet an autonomous multi-step function-calling agent. It intentionally has no conversational memory: repeat BOTH service and slot in each offer request. Any new natural-language turn clears the previous offer/replay context. The exact confirm/retry commands bypass the LLM; natural-language 'yes' is not accepted as authorization. Voice consent handling will require a separate design.
+The model cannot select confirm or provide customer IDs, request keys, or SQL. Replies are templates grounded in controller results; no second generation call is needed. This is a bounded action router, not an autonomous multi-step function-calling agent. The controller keeps structured service and exact slot-ID details plus only the latest confirmed booking in process memory; it does not retain a transcript or persist memory across sessions. This supports split requests and questions about the recent booking. A remembered detail is not booking authorization. Neutral acknowledgements such as `ok` do not confirm or replace a pending offer; only the exact `confirm` command books. Other new natural-language turns clear pending offer/retry context. Cancel and handoff clear pending request details, while the latest booking remains available for a status response until process exit. Voice consent handling will require a separate design.
 
 ### Billing checklist BEFORE live mode
 
@@ -126,7 +126,7 @@ python text_demo.py
 
 Try: `What appointments are available?`, then `Oil change at slot 1 please`, then `confirm`, then `retry`, then `quit`. Pending offers are not reservations. Existing bookings cannot be cancelled yet. Handoff is a local event; no staff member is contacted.
 
-An opt-in model evaluation costs up to ten model calls for this fixed set:
+An opt-in model evaluation costs up to twelve model calls for the current fixed set of ten cases:
 
 ```powershell
 & '../.venv/Scripts/python.exe' evaluate.py --live
@@ -134,6 +134,19 @@ Remove-Item Env:DEMO_ALLOW_PAID_CALLS
 ```
 
 For Bash, disable live mode with `unset DEMO_ALLOW_PAID_CALLS`. We have NOT run a live evaluation or changed your provider billing settings. Model access, API behavior, and actual natural-language accuracy remain unverified until the first approved live run.
+
+### Local speech-to-text experiment
+
+`local_stt.py` transcribes a WAV, MP3, or M4A file with faster-whisper running on CPU using int8. The default `small` model supports English and French; `base` is available for a smaller/faster experiment. The first run downloads model weights to the local model cache. Audio is processed locally by this script and is not sent to OpenAI. This is file-based transcription, not browser streaming. The existing text agent still uses the hosted OpenAI router for decisions.
+
+From this project folder, run:
+
+```powershell
+& '../.venv/Scripts/python.exe' local_stt.py path\to\sample.wav
+& '../.venv/Scripts/python.exe' local_stt.py path\to\sample.wav --language fr
+```
+
+The command reports detected language, transcript segments, model-load time, and transcription time. Compare the transcription time with the recording length before choosing a model for interactive voice use.
 
 References: https://developers.openai.com/api/docs/pricing ; https://developers.openai.com/api/docs/guides/spend-limits ; https://help.openai.com/en/articles/8264778-what-is-prepaid-billing
 
@@ -145,3 +158,21 @@ References: https://developers.openai.com/api/docs/pricing ; https://developers.
 - 25 minutes: manually try a live conversation, missing details, unsupported requests, and the explicit confirmation gate.
 - 20 minutes: run the live evaluation. Inspect failing decisions and persisted outcomes rather than judging fluent responses.
 - 20 minutes: propose one targeted prompt change, compare results, and add fresh edge cases. Do not train/fine-tune on this developer set and call it a held-out test.
+
+### Offline task measurement and callback-priority experiment
+
+The booking evaluator includes deterministic scenarios for punctuated spoken confirmation, ambiguous follow-up while an offer is pending, a wrong-date proposal, a real competing booking against the same SQLite slot, and a booking that commits but whose response is lost. The last case verifies idempotent retry with the same request key. Run it without model calls:
+
+```powershell
+& '../.venv/Scripts/python.exe' evaluate.py
+```
+
+The report compares expected events and exact persisted `(service, slot_id)` rows. It also reports booking precision/recall, booking success on cases expected to book, no-booking safety on cases expected not to book, and p50/p95 for case, turn, and model-call timing. In scripted-controller mode, the evaluator supplies the expected router decisions: perfect decision scores validate controller/database behavior only. Model-call latency is therefore null, and p95 from a small suite is illustrative rather than a production SLO.
+
+`callback_triage_cases.json` and `callback_triage.py` demonstrate a separate supervised downstream task: rank missed calls for a prompt human callback. The binary label `urgent_callback` is manually assigned in synthetic examples; features represent hypothetical structured signals such as a safety concern, undrivable vehicle, repeat contact, or manager request. The benchmark holds out fixed examples, compares a transparent rule score with logistic regression, and reports precision, recall, F1, confusion matrix, and precision/recall within a 25% callback-capacity budget. Run it with:
+
+```powershell
+& '../.venv/Scripts/python.exe' callback_triage.py
+```
+
+These examples demonstrate an evaluation workflow, not dealership performance. In a real system, define the label with service operations, use consented and access-controlled records, adjudicate ambiguous labels, split by dealership/time to prevent leakage, compare against current callback policy, and evaluate missed urgent cases and workload at realistic staffing capacity before any operational use.
