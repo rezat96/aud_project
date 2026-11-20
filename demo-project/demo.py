@@ -31,11 +31,14 @@ def smoke(scheduler: Scheduler) -> None:
     emit("retry_verified", same_booking=booking == replay)
 
 
+HELP_TEXT = "Commands: slots | offer oil_change 1 | offer tire_rotation 2 | confirm | retry | help | quit"
+
+
 def console(scheduler: Scheduler) -> None:
     offer = None
     request_key = None
     print("Local mock dealership. All times UTC. No AI or network calls.")
-    print("Commands: slots | offer oil_change 1 | offer tire_rotation 2 | confirm | retry | quit")
+    print(HELP_TEXT)
     print("An offer is not a reservation. Confirm commits the latest offered details.")
     for _ in range(20):
         try:
@@ -46,6 +49,9 @@ def console(scheduler: Scheduler) -> None:
             continue
         if command == ["quit"]:
             break
+        if command == ["help"]:
+            print(HELP_TEXT)
+            continue
         try:
             if command == ["slots"]:
                 emit("availability", slots=scheduler.available_slots(utc_now()))
