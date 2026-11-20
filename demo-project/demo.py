@@ -31,7 +31,7 @@ def smoke(scheduler: Scheduler) -> None:
     emit("retry_verified", same_booking=booking == replay)
 
 
-HELP_TEXT = "Commands: slots | offer oil_change 1 | offer tire_rotation 2 | confirm | retry | help | quit"
+HELP_TEXT = "Commands: slots | offer oil_change 1 | offer tire_rotation 2 | confirm | retry | bookings | help | quit"
 
 
 def console(scheduler: Scheduler) -> None:
@@ -66,6 +66,8 @@ def console(scheduler: Scheduler) -> None:
                 offer, request_key = proposed_offer, str(uuid4())
                 emit("awaiting_confirmation", service=command[1],
                      slot_id=slots[index]["slot_id"], expires_in_seconds=300)
+            elif command == ["bookings"]:
+                emit("bookings", bookings=[asdict(booking) for booking in scheduler.list_bookings()])
             elif command in (["confirm"], ["retry"]):
                 if offer is None or request_key is None:
                     raise BookingError("Prepare an offer first.")

@@ -127,6 +127,16 @@ class Scheduler:
                 raise BookingError("Slot or offer already booked; recheck before retrying.") from error
             return booking
 
+    def list_bookings(self) -> list[Booking]:
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                """SELECT b.booking_id, b.slot_id, o.service, o.customer_id
+                   FROM bookings b JOIN offers o USING (offer_id)
+                   ORDER BY b.slot_id"""
+            ).fetchall()
+            return [Booking(row["booking_id"], row["slot_id"],
+                            row["service"], row["customer_id"]) for row in rows]
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)

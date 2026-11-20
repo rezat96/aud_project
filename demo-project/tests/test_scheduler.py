@@ -25,6 +25,12 @@ class SchedulerTests(unittest.TestCase):
         parameters.update(overrides)
         return self.scheduler.confirm_booking(**parameters)
 
+    def test_list_bookings_shows_only_confirmed_bookings(self):
+        self.assertEqual(self.scheduler.list_bookings(), [])
+        booking = self.book()
+        self.book()
+        self.assertEqual(self.scheduler.list_bookings(), [booking])
+
     def test_confirmed_booking_removes_slot(self):
         self.assertEqual(self.book().slot_id, self.slot_id)
         self.assertEqual(len(self.scheduler.available_slots(self.now)), 1)
